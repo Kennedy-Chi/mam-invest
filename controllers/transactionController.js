@@ -35,11 +35,12 @@ exports.createTransaction = catchAsync(async (req, res, next) => {
     if (data.fromBalance == "true") {
       data.reinvest = true;
     }
-    const result = await Transaction.create(data);
+
+    await Transaction.create(data);
 
     if (data.transactionType == "withdrawal") {
       await Wallet.findByIdAndUpdate(data.walletId, {
-        $inc: { pendingWithdrawal: data.amount * -1 },
+        $inc: { pendingWithdrawal: data.amount },
       });
     } else {
       await Wallet.findByIdAndUpdate(data.walletId, {
@@ -48,12 +49,12 @@ exports.createTransaction = catchAsync(async (req, res, next) => {
     }
     sendTransactionEmail(data.user, data.transactionType, data.amount, next);
 
-    // notificationController.createNotification(
-    //   data.user.username,
-    //   data.transactionType,
-    //   data.date,
-    //   data.dateCreated
-    // );
+    notificationController.createNotification(
+      data.user.username,
+      data.transactionType,
+      data.date,
+      data.dateCreated
+    );
 
     next();
   }
@@ -251,6 +252,16 @@ exports.approveDeposit = catchAsync(async (req, res, next) => {
       { username: req.body.username },
       { $inc: { totalBalance: req.body.amount } }
     );
+  }
+
+  if (req.body.transactionType == "withdrawal") {
+    await Wallet.findByIdAndUpdate(req.body.walletId, {
+      $inc: { pendingWithdrawal: req.body.amount * -1 },
+    });
+  } else {
+    await Wallet.findByIdAndUpdate(req.body.walletId, {
+      $inc: { pendingDeposit: req.body.amount * -1 },
+    });
   }
 
   req.body.planDuration = req.body.planDuration * 24 * 60 * 60 * 1000;
