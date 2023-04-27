@@ -2623,7 +2623,7 @@ textarea.w-select {
 .dropdown-toggle {
   width: 100%;
   padding-top: 12px;
-  padding-bottom: 20px;
+  padding-bottom: 0px;
 }
 
 .div-block-43 {
@@ -3952,7 +3952,7 @@ textarea.w-select {
   margin-bottom: 0px;
   font-family: Raleway, sans-serif;
   color: #777;
-  font-size: 20px;
+  font-size: 17px;
   line-height: 35px;
 }
 
@@ -4641,7 +4641,7 @@ textarea.w-select {
 }
 
 .heading-46 {
-  margin-bottom: 20px;
+  margin-bottom: 0px;
   font-family: Catamaran, sans-serif;
   color: #51475a;
   font-size: 25px;
