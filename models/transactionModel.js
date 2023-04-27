@@ -14,7 +14,6 @@ const transactionSchema = new mongoose.Schema({
   walletName: String,
   referredBy: String,
   walletId: String,
-  serverTime: Number,
   time: Number,
   reinvest: Boolean,
   status: {

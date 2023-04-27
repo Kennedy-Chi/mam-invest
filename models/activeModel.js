@@ -14,6 +14,7 @@ const activeSchema = new mongoose.Schema({
   referredBy: String,
   walletName: String,
   walletId: String,
+  serverTime: Number,
   time: Number,
 });
 
