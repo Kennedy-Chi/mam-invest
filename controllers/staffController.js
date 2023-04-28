@@ -58,8 +58,8 @@ exports.getStaffs = catchAsync(async (req, res, next) => {
 
 exports.updateStaff = catchAsync(async (req, res, next) => {
   const filesToDelete = [];
-  if (req.file) {
-    req.body.image = req.file.filename;
+  if (req.files && req.files.image) {
+    req.body.image = req.files.image[0].filename;
     const oldStaff = await Staff.findById(req.params.id);
     filesToDelete.push(oldStaff.image);
   }
