@@ -304,7 +304,7 @@ exports.approveDeposit = catchAsync(async (req, res, next) => {
   req.body.daysRemaining = req.body.planDuration;
   req.body.serverTime = new Date().getTime();
   const earning = Number((req.body.amount * req.body.percent) / 100).toFixed(2);
-  req.body.earning = earning;
+  req.body.earning = 0;
   const activeDeposit = await Active.create(req.body);
 
   startActiveDeposit(
