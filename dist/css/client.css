@@ -1947,7 +1947,7 @@ textarea.w-select {
 .nav-section {
   height: auto;
   padding-bottom: 0px;
-  background-image: url("https://uploads-ssl.webflow.com/634f65db6f66af39a9853ff1/635b3afd8c35bf4e6a37c161_mainBg.png");
+  background-image: url("../images//nav-bg.jpg");
   background-position: 50% 50%;
   background-size: cover;
 }
@@ -6616,7 +6616,6 @@ textarea.w-select {
 
   .dropdown-toggle {
     margin-bottom: 0px;
-    padding-bottom: 20px;
   }
 
   .link-block-2 {
@@ -6882,7 +6881,6 @@ textarea.w-select {
   }
 
   .heading-35 {
-    margin-bottom: 20px;
     font-size: 16px;
     line-height: 28px;
   }
