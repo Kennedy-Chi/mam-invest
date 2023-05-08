@@ -12,17 +12,14 @@ router
   .get(walletController.getWallet)
   .patch(walletController.updateWallet);
 
-// router
-//   .route("/:id")
-//   .get(walletController.getAnwallet)
-//   .patch(
-//     // authController.protect,
-//     walletController.updatewallet
-//   )
-//   .delete(
-//     // authController.protect,
-//     // authController.restrictTo("room"),
-//     walletController.deletewallet
-//   );
+router
+  .route("/:id")
+  .get(walletController.getAWalletId)
+  .patch(authController.protect, walletController.updateWallet)
+  .delete(
+    authController.protect,
+    // authController.restrictTo("room"),
+    walletController.deleteWallet
+  );
 
 module.exports = router;

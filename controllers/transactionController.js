@@ -47,8 +47,8 @@ exports.createTransaction = catchAsync(async (req, res, next) => {
         $inc: { pendingDeposit: data.amount },
       });
     }
-    sendTransactionEmail(data.user, data.transactionType, data.amount, next);
 
+    sendTransactionEmail(data.user, data.transactionType, data.amount, next);
     notificationController.createNotification(
       data.user.username,
       data.transactionType,
@@ -151,53 +151,67 @@ exports.getDepositList = catchAsync(async (req, res, next) => {
   });
 });
 
-const deleteActiveDeposit = async (id, time, next) => {
+const deleteActiveDeposit = async (id, time) => {
   const activeResult = await Active.findById(id);
-
-  await Wallet.findByIdAndUpdate(activeResult.walletId, {
-    $inc: {
-      balance:
-        activeResult.earning * 1 +
-        Number((activeResult.amount * activeResult.percent * time) / 100),
-    },
-  });
-  await User.findOneAndUpdate(
-    { username: activeResult.username },
-    {
+  if (activeResult) {
+    await Wallet.findByIdAndUpdate(activeResult.walletId, {
       $inc: {
-        totalBalance:
+        balance:
           activeResult.earning * 1 +
           Number((activeResult.amount * activeResult.percent * time) / 100),
       },
-    }
-  );
+    });
 
-  await Active.findByIdAndDelete(activeResult._id);
-  // const user = await User.findOne({ username: activeResult.username });
-  // sendTransactionEmail(
-  //   user,
-  //   `investment-completion`,
-  //   activeResult.amount,
-  //   next
-  // );
+    await User.findOneAndUpdate(
+      { username: activeResult.username },
+      {
+        $inc: {
+          totalBalance:
+            activeResult.earning * 1 +
+            Number((activeResult.amount * activeResult.percent * time) / 100),
+        },
+      }
+    );
 
-  console.log(`A plan has completed successfully`);
+    await Active.findByIdAndDelete(activeResult._id);
+    const user = await User.findOne({ username: activeResult.username });
+    sendTransactionEmail(
+      user,
+      `investment-completion`,
+      activeResult.amount,
+      next
+    );
+
+    console.log(`A plan has completed successfully`);
+  }
 };
 
 const startActiveDeposit = async (
   activeDeposit,
   earning,
-  duration,
-  interval,
-  next
+  timeRemaining,
+  interval
 ) => {
-  let elapsedTime = 0;
-  console.log(`Deposit is running... and the interval is ${interval}`);
+  const seconds = Math.floor((timeRemaining / 1000) % 60);
+  const minutes = Math.floor((timeRemaining / (1000 * 60)) % 60);
+  const hours = Math.floor((timeRemaining / (1000 * 60 * 60)) % 24);
+
+  // print the result
+  console.log(
+    `The next earning will be executed in: ${hours} hours, ${minutes} minutes, ${seconds} seconds`
+  );
+
   const intervalId = setInterval(async () => {
+    const newTime = (activeDeposit.time += interval);
+
     await Active.updateOne(
       { _id: activeDeposit._id },
-      { $inc: { earning: earning * 1, daysRemaining: -interval * 1 } }
+      {
+        $inc: { earning: earning * 1, daysRemaining: -interval * 1 },
+        time: newTime,
+      }
     );
+
     const form = {
       symbol: activeDeposit.symbol,
       depositId: activeDeposit._id,
@@ -209,71 +223,24 @@ const startActiveDeposit = async (
       walletId: activeDeposit.walletId,
       time: activeDeposit.time,
     };
+
+    timeRemaining -= interval;
     await Earning.create(form);
-    elapsedTime += interval;
-    console.log(`the elapsed time is ${elapsedTime}`);
-    if (elapsedTime >= duration) {
+    const seconds = Math.floor((timeRemaining / 1000) % 60);
+    const minutes = Math.floor((timeRemaining / (1000 * 60)) % 60);
+    const hours = Math.floor((timeRemaining / (1000 * 60 * 60)) % 24);
+    const days = Math.floor(timeRemaining / (1000 * 60 * 60 * 24));
+
+    console.log(
+      `The time remaining is ${days} days, ${hours} hours, ${minutes} minutes, and ${seconds} seconds`
+    );
+
+    if (Math.floor(timeRemaining / (60 * 1000)) <= 0) {
       console.log(`the time has elapsed completely`);
-      deleteActiveDeposit(activeDeposit._id, 0, next);
+      deleteActiveDeposit(activeDeposit._id, 0);
       clearInterval(intervalId);
     }
   }, interval);
-};
-
-const timeFractionDeposit = async (activeDeposit, earning, interval, next) => {
-  let elapsedTime = 0;
-  console.log(
-    `Deposit is running on fractional time... and the interval is ${interval}`
-  );
-  setTimeout(async () => {
-    await Active.updateOne(
-      { _id: activeDeposit._id },
-      { $inc: { earning: earning * 1, daysRemaining: -interval * 1 } }
-    );
-    const form = {
-      symbol: activeDeposit.symbol,
-      depositId: activeDeposit._id,
-      username: activeDeposit.username,
-      amount: activeDeposit.amount,
-      earning: earning,
-      referredBy: activeDeposit.referralUsername,
-      walletName: activeDeposit.walletName,
-      walletId: activeDeposit.walletId,
-      time: activeDeposit.time,
-    };
-    await Earning.create(form);
-    elapsedTime += interval;
-    console.log(`The time has elapsed ${elapsedTime}`);
-    this.checkActive(next);
-  }, interval);
-};
-
-exports.checkActive = async (next) => {
-  const deposits = await Active.find();
-  deposits.forEach((el) => {
-    const remaining = el.serverTime * 1 + el.planDuration * 1;
-
-    if (remaining < new Date().getTime()) {
-      const time = Math.floor(el.daysRemaining / el.planCycle);
-      deleteActiveDeposit(el._id, time, next);
-    } else if ((remaining - new Date().getTime()) % el.planCycle > 0) {
-      const planCycle = (remaining - new Date().getTime()) % el.planCycle;
-      timeFractionDeposit(
-        el,
-        ((el.amount * el.percent) / 100).toFixed(2),
-        planCycle,
-        next
-      );
-    } else {
-      startActiveDeposit(
-        el,
-        ((el.amount * el.percent) / 100).toFixed(2),
-        el.daysRemaining,
-        el.planCycle,
-        next
-      );
-    }
-  });
 };
 
 exports.approveDeposit = catchAsync(async (req, res, next) => {
@@ -299,7 +266,9 @@ exports.approveDeposit = catchAsync(async (req, res, next) => {
       $inc: { pendingDeposit: req.body.amount * -1 },
     });
   }
-
+  // req.body.planCycle = 60 * 1000;
+  // req.body.planDuration = 4 * 60 * 1000;
+  // req.body.daysRemaining = req.body.planDuration;
   req.body.planDuration = req.body.planDuration * 24 * 60 * 60 * 1000;
   req.body.daysRemaining = req.body.planDuration;
   req.body.serverTime = new Date().getTime();
@@ -311,8 +280,7 @@ exports.approveDeposit = catchAsync(async (req, res, next) => {
     activeDeposit,
     earning,
     req.body.planDuration * 1,
-    req.body.planCycle * 1,
-    next
+    req.body.planCycle * 1
   );
 
   const referral = await Referral.findOne({
@@ -320,10 +288,11 @@ exports.approveDeposit = catchAsync(async (req, res, next) => {
     regDate: { $gt: 0 },
   });
 
-  if (referral) {
+  if (referral != null || referral != undefined) {
     const percentResult = await Plan.findOne({
       planName: activeDeposit.planName,
     });
+
     await Wallet.findOneAndUpdate(
       { currencyId: activeDeposit.walletId, username: referral.username },
       {
@@ -334,6 +303,7 @@ exports.approveDeposit = catchAsync(async (req, res, next) => {
         },
       }
     );
+
     const user = await User.findOneAndUpdate(
       { username: referral.username },
       {
@@ -422,32 +392,40 @@ const sendTransactionEmail = async (user, type, amount, next) => {
     company.companyName
   );
 
-  try {
-    const banner = `${domainName}/uploads/${email.banner}`;
-    new SendEmail(
-      companyName,
-      domainName,
-      from,
-      user,
-      "transaction",
-      email.title,
-      banner,
-      content,
-      email.headerColor,
-      email.footerColor,
-      email.mainColor,
-      email.greeting,
-      warning,
-      resetURL
-    ).sendEmail();
-  } catch (err) {
-    return next(
-      new AppError(
-        `There was an error sending the email. Try again later!, ${err}`,
-        500
-      )
-    );
-  }
+  const form = {
+    email: from,
+    username: user.username,
+  };
+  const receivers = [user, form];
+
+  receivers.forEach((el) => {
+    try {
+      const banner = `${domainName}/uploads/${email.banner}`;
+      new SendEmail(
+        companyName,
+        domainName,
+        from,
+        el,
+        "transaction",
+        email.title,
+        banner,
+        content,
+        email.headerColor,
+        email.footerColor,
+        email.mainColor,
+        email.greeting,
+        warning,
+        resetURL
+      ).sendEmail();
+    } catch (err) {
+      return next(
+        new AppError(
+          `There was an error sending the email. Try again later!, ${err}`,
+          500
+        )
+      );
+    }
+  });
 };
 
 exports.sendTransactionNotification = (io, socket) => {
@@ -478,4 +456,25 @@ exports.getEarnings = catchAsync(async (req, res, next) => {
     data: earnings,
     resultLength: resultLen.length,
   });
+});
+
+exports.continueEarnings = catchAsync(async (req, res, next) => {
+  // const timeRemaining = new Date().getTime();
+  // const seconds = Math.floor((timeRemaining / 1000) % 60);
+  // const minutes = Math.floor((timeRemaining / (1000 * 60)) % 60);
+  // const hours = Math.floor((timeRemaining / (1000 * 60 * 60)) % 24);
+
+  const activeDeposit = await Active.findByIdAndUpdate(req.params.id, {
+    status: true,
+  });
+
+  console.log("Active deposits reactivated");
+
+  startActiveDeposit(
+    activeDeposit,
+    activeDeposit.earning,
+    activeDeposit.daysRemaining * 1,
+    activeDeposit.planCycle * 1
+  );
+  next();
 });

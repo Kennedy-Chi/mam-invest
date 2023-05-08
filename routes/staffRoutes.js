@@ -22,10 +22,8 @@ router
   .route("/:id")
   .get(staffController.getAStaff)
   .patch(
-    upload.upload.fields([
-      { name: "coloredMediaIcon", maxCount: 10 },
-      { name: "image", maxCount: 1 },
-    ]),
+    upload.upload.single("image"),
+    upload.upload.fields([{ name: "coloredMediaIcon", maxCount: 10 }]),
     staffController.updateStaff,
     deleteFile,
     staffController.getStaffs

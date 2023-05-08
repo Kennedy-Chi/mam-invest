@@ -12,10 +12,14 @@ const activeSchema = new mongoose.Schema({
   planCycle: Number,
   daysRemaining: Number,
   referredBy: String,
+  serverTime: Number,
   walletName: String,
   walletId: String,
-  serverTime: Number,
   time: Number,
+  status: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const Active = mongoose.model("Active", activeSchema);
