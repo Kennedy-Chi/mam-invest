@@ -9,18 +9,20 @@ const userSchema = new mongoose.Schema({
     trim: true,
   },
 
-  fullName: {
+  lastName: {
+    type: String,
+    trim: true,
+  },
+
+  firstName: {
     type: String,
     trim: true,
   },
 
   email: {
     type: String,
-    required: [true, "Please fill in your email"],
-    unique: [true, "A user with this email already exist"],
     trim: true,
     lowercase: true,
-    validate: [validator.isEmail, "Please provide a valid email"],
   },
 
   autoRegister: {
@@ -51,25 +53,36 @@ const userSchema = new mongoose.Schema({
       message: "Sorry the passwords do not match",
     },
   },
+
   referredBy: {
     type: String,
     default: "",
   },
+
   hasReferred: {
     type: Boolean,
     default: false,
   },
+
   status: {
     type: String,
     default: "User",
   },
-  profilePicture: String,
-  identity: String,
-  idPicture: String,
+
+  phoneNumber: {
+    type: Number,
+    default: 0,
+  },
+
   dob: {
     type: Number,
     default: 0,
   },
+  country: String,
+  countryFlag: String,
+  profilePicture: String,
+  documentName: String,
+  documentFile: String,
   referrals: Array,
   regDate: Number,
   passwordChangedAt: Date,

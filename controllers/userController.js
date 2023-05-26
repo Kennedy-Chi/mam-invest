@@ -1,8 +1,13 @@
 const { token } = require("morgan");
+const upload = require("../config/multer");
 const User = require("../models/userModel");
 const Related = require("../models/relatedModel");
 const Wallet = require("../models/walletModel");
+const Currency = require("../models/currencyModel");
+const Comment = require("../models/commentModel");
 const Transaction = require("../models/transactionModel");
+const Active = require("../models/activeModel");
+const Earning = require("../models/earningModel");
 const AppError = require("../utils/appError");
 const APIFeatures = require("../utils/apiFeatures");
 const catchAsync = require("../utils/catchAsync");
@@ -92,9 +97,7 @@ exports.editUser = catchAsync(async (req, res, next) => {
 
   await User.updateOne(
     { _id: req.params.id },
-    {
-      $inc: { totalBalance: totalBalance * 1 },
-    }
+    { totalBalance: totalBalance * 1 }
   );
 
   req.fileNames = files;
@@ -123,16 +126,122 @@ exports.deleteUser = catchAsync(async (req, res, next) => {
     username: user.username,
   });
 
+  await Wallet.deleteMany(
+    { username: user.username },
+    {
+      $set: {
+        balance: 0,
+        totalDeposit: 0,
+        pendingDeposit: 0,
+        totalWithdrawal: 0,
+        pendingWithdrawal: 0,
+      },
+    }
+  );
+  await Active.deleteMany({ username: user.username });
+  await Earning.deleteMany({ username: user.username });
+
   next();
+});
+
+exports.resetUsers = catchAsync(async (req, res, next) => {
+  await User.updateMany({ $set: { totalBalance: 0 } });
+  await Wallet.updateMany({
+    $set: {
+      balance: 0,
+      totalDeposit: 0,
+      pendingDeposit: 0,
+      totalWithdrawal: 0,
+      pendingWithdrawal: 0,
+    },
+  });
+  await Currency.updateMany({
+    $set: {
+      totalDeposit: 0,
+      pendingDeposit: 0,
+      totalWithdrawal: 0,
+      pendingWithdrawal: 0,
+    },
+  });
+  await Transaction.deleteMany();
+  await Active.deleteMany();
+  await Earning.deleteMany();
+
+  res.status(200).json({
+    status: "success",
+  });
+});
+
+exports.resetUser = catchAsync(async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+
+  await User.updateMany({ _id: req.params.id }, { $set: { totalBalance: 0 } });
+  await Wallet.updateMany(
+    { username: user.username },
+    {
+      $set: {
+        balance: 0,
+        totalDeposit: 0,
+        pendingDeposit: 0,
+        totalWithdrawal: 0,
+        pendingWithdrawal: 0,
+      },
+    }
+  );
+  await Transaction.deleteMany({ username: user.username });
+  await Active.deleteMany({ username: user.username });
+  await Earning.deleteMany({ username: user.username });
+
+  res.status(200).json({
+    status: "success",
+  });
 });
 
 exports.fetchUsers = (io, socket) => {
   socket.on("fetchUsers", async (item) => {
     const limit = item.limit;
     const users = await User.find({
-      username: { $regex: item.keyWord, $options: "$i" },
-      firstName: { $regex: item.keyWord, $options: "$i" },
+      username: { $regex: new RegExp(item.keyWord, "i") },
     }).limit(limit);
+
     io.emit("fetchedUsers", users);
   });
 };
+
+exports.editUserPictue = catchAsync(async (req, res, next) => {
+  let files = [];
+  const oldUser = await User.findById(req.params.id);
+
+  req.body.password = undefined;
+  req.body.cPassword = undefined;
+
+  await User.findByIdAndUpdate(
+    req.params.id,
+    { profilePicture: req.file.filename },
+    {
+      new: true,
+      // runValidators: true,
+    }
+  );
+  files.push(oldUser.profilePicture);
+  req.fileNames = files;
+
+  next();
+});
+
+exports.editComment = catchAsync(async (req, res, next) => {
+  await Comment.findOneAndUpdate({ username: req.params.username }, req.body);
+
+  next();
+});
+
+exports.getComment = catchAsync(async (req, res, next) => {
+  const comment = await Comment.findOneAndUpdate({
+    username: req.query.username,
+  });
+
+  res.status(200).json({
+    status: "success",
+    data: comment,
+  });
+});

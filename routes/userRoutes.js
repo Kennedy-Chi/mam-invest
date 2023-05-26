@@ -12,6 +12,24 @@ router.route("/get-user").get(authController.getAUser);
 router.route("/activate-user/:id").patch(authController.activateAUser);
 
 router.route("/related/:username").get(userController.getRelatedData);
+router.route("/reset").get(userController.resetUsers);
+
+router.route("/reset/:id").patch(userController.resetUser);
+router.patch(
+  "/edit-picture/:id",
+  upload.upload.single("profilePicture"),
+  userController.editUserPictue,
+  deleteFile,
+  authController.getAUser
+);
+
+router
+  .patch(
+    "/comment/:username",
+    userController.editComment,
+    userController.getComment
+  )
+  .get("/comment", userController.getComment);
 
 router
   .route("/update-password")
@@ -22,7 +40,10 @@ router.route("/reset-password/:token").patch(authController.resetPassword);
 
 router.post(
   "/signup",
-  upload.upload.fields([{ name: "profilePicture" }, { name: "idPicture" }]),
+  upload.upload.fields([
+    { name: "profilePicture", maxCount: 1 },
+    { name: "documentFile", maxCount: 1 },
+  ]),
   authController.signup
 );
 
@@ -33,7 +54,10 @@ router
   .get(userController.getAUser)
   .patch(
     // authController.protect,
-    upload.upload.fields([{ name: "profilePicture" }, { name: "idPicture" }]),
+    upload.upload.fields([
+      { name: "profilePicture", maxCount: 1 },
+      { name: "documentFile", maxCount: 1 },
+    ]),
     userController.editUser,
     deleteFile,
     userController.getAllUsers

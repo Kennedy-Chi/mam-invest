@@ -5,6 +5,8 @@ const User = require("../models/userModel");
 const Signup = require("../models/signupModel");
 const Referral = require("../models/referralModel");
 const Company = require("../models/companyModel");
+const Comment = require("../models/commentModel");
+const Notification = require("../models/notificationModel");
 const Related = require("../models/relatedModel");
 const Email = require("../models/emailModel");
 const AppError = require("../utils/appError");
@@ -17,7 +19,7 @@ const signToken = (id) => {
   });
 };
 
-const createSendToken = (user, statusCode, res) => {
+const createSendToken = (user, statusCode, res, code, message) => {
   const token = signToken(user._id);
 
   const cookieOptions = {
@@ -35,6 +37,8 @@ const createSendToken = (user, statusCode, res) => {
     status: "success",
     token,
     user,
+    code,
+    message,
   });
 };
 
@@ -42,142 +46,145 @@ exports.signup = catchAsync(async (req, res, next) => {
   const data = req.body;
   data.status = "User";
 
-  const users = await User.find({ username: req.body.username });
-  if (users.length > 0) {
-    return next(
-      new AppError(`Sorry, a user with this username already exist`, 500)
-    );
-  }
+  const numberOfUsers = await User.find();
 
-  const emails = await User.find({ email: req.body.email });
-  if (emails.length > 0) {
-    return next(
-      new AppError(`Sorry, a user with this email already exist`, 500)
-    );
-  }
-
-  if (data.autoRegister) {
+  //CHECK FOR THE NUMBER OF USERS TO ASSIGN ADMIN
+  if (numberOfUsers.length == 0) {
+    data.status = "Admin";
     data.suspension = false;
     const user = await User.create(data);
-    await Related.create(data);
-    createSendToken(user, 201, res);
+    createSendToken(
+      user,
+      201,
+      res,
+      "admin",
+      "Congratulations, you have register as an admin, please login to continue"
+    );
   } else {
-    const signupResult = await Signup.find();
-    const signup = signupResult[0];
-    if (signup) {
-      //--------CHECK USER DOCUMENT-------------
-      if (signup.identity) {
-        if (req.files.profilePicture && req.files.idPicture) {
-          data.profilePicture = req.files.profilePicture[0].filename;
-          data.idPicture = req.files.idPicture[0].filename;
+    // VALIDATE THE BASIC RECEIVED FIELDS
+    const result = validateUser(
+      data.username,
+      data.firstName,
+      data.lastName,
+      data.email,
+      data.password,
+      data.phoneNumber
+    );
+    if (result != true) {
+      return next(new AppError(result, 401));
+    }
+
+    const user = await User.findOne({ username: data.username });
+
+    if (user) {
+      return next(
+        new AppError(
+          `Sorry, a user with this username ${user.username} already exist`,
+          500
+        )
+      );
+    }
+
+    const email = await User.findOne({ email: data.email });
+    if (email) {
+      return next(
+        new AppError(
+          `Sorry, a user with this email ${email.email} already exist`,
+          500
+        )
+      );
+    }
+
+    const phone = await User.findOne({ email: data.phoneNumber });
+    if (phone) {
+      return next(
+        new AppError(
+          `Sorry, a user with this email ${phone.phoneNumber} already exist`,
+          500
+        )
+      );
+    }
+
+    if (data.autoRegister) {
+      data.suspension = false;
+      const user = await User.create(data);
+      await Related.create(data);
+      createSendToken(user, 201, res, "auto", "");
+    } else {
+      const signupResult = await Signup.find();
+      const signup = signupResult[0];
+      if (signup) {
+        //--------CHECK USER DOCUMENT-------------
+        if (signup.identity) {
+          if (req.files.profilePicture && req.files.documentFile) {
+            data.profilePicture = req.files.profilePicture[0].filename;
+            data.documentFile = req.files.documentFile[0].filename;
+          } else {
+            return next(
+              new AppError(`Please upload the necessary documents!`, 500)
+            );
+          }
         } else {
-          return next(
-            new AppError(`Please upload the necessary documents!`, 500)
-          );
+          data.documentFile = undefined;
+          data.profilePicture = undefined;
+        }
+
+        //--------CHECK USER RESIDENCE-------------
+        if (signup.residence) {
+          if (
+            data.residentAddress1 == "" ||
+            data.residentDestrict == "" ||
+            data.residentZipCode == "" ||
+            data.residentState == "Select State" ||
+            data.residentCountry == "Select Country"
+          ) {
+            return next(
+              new AppError(`Please fill in all residential information!`, 500)
+            );
+          }
+        }
+
+        //--------CHECK USER ORIGIN-------------
+        if (signup.origin) {
+          if (
+            data.originAddress1 == "" ||
+            data.originDestrict == "" ||
+            data.originZipCode == "" ||
+            data.originState == "Select State" ||
+            data.originCountry == "Select Country"
+          ) {
+            return next(
+              new AppError(`Please fill in all information of origin!`, 500)
+            );
+          }
+        }
+
+        //----------CHECK FOR EMAIL---------------
+        if (signup.email) {
+          data.suspension = true;
+        } else {
+          data.suspension = false;
         }
       }
 
-      //--------CHECK USER RESIDENCE-------------
-      if (signup.residence) {
-        if (
-          data.residentAddress1 == "" ||
-          data.residentDestrict == "" ||
-          data.residentZipCode == "" ||
-          data.residentState == "Select State" ||
-          data.residentCountry == "Select Country"
-        ) {
-          return next(
-            new AppError(`Please fill in all residential information!`, 500)
-          );
-        }
-      }
+      const user = await User.create(data);
 
-      //--------CHECK USER ORIGIN-------------
-      if (signup.origin) {
-        if (
-          data.originAddress1 == "" ||
-          data.originDestrict == "" ||
-          data.originZipCode == "" ||
-          data.originState == "Select State" ||
-          data.originCountry == "Select Country"
-        ) {
-          return next(
-            new AppError(`Please fill in all information of origin!`, 500)
-          );
-        }
-      }
-
-      //----------CHECK FOR EMAIL---------------
       if (signup.email) {
-        data.suspension = true;
-      }
-    }
+        prepareEmail(user, "confirm-registration");
 
-    //----------CHECK FOR REFERRAL---------------
-    const referral = await User.findOne({ username: data.referredBy });
-    const user = await User.create(data);
-
-    if (referral != null || referral != undefined) {
-      const form = {
-        username: user.username,
-        regDate: data.regDate,
-      };
-      referral.referrals.push(form);
-      await User.findByIdAndUpdate(referral._id, {
-        referrals: referral.referrals,
-        hasReferred: true,
-      });
-      await Referral.create({
-        username: referral.username,
-        referralUsername: user.username,
-        regDate: data.regDate,
-      });
-    }
-
-    if (signup.email) {
-      const emailResult = await Email.find({
-        template: "confirm-registration",
-      });
-      const email = emailResult[0];
-      const companyResult = await Company.find();
-      const company = companyResult[0];
-
-      const content = email.content
-        .replace("{{company-name}}", company.companyName)
-        .replace("{{fullName}}", `${user.firstName} ${user.lastName}`);
-      const from = company.systemEmail;
-      const domainName = company.companyDomain;
-
-      try {
-        const resetURL = `${domainName}/confirm-registration?token=${user._id}`;
-        const banner = `${domainName}/uploads/${email.banner}`;
-        new SendEmail(
-          company.companyName,
-          company.companyDomain,
-          from,
+        createSendToken(
           user,
-          email.template,
-          email.title,
-          banner,
-          content,
-          email.headerColor,
-          email.footerColor,
-          email.mainColor,
-          email.greeting,
-          email.warning,
-          resetURL
-        ).sendEmail();
-      } catch (err) {
-        return next(
-          new AppError(
-            `There was an error sending the email. Try again later!, ${err}`,
-            500
-          )
+          201,
+          res,
+          "verify",
+          "Activate your account by verifying the email sent to you"
         );
+      } else {
+        const msg =
+          "Congrats, you have successfully signed up, kindly login to continue.";
+        createUserRecords(user, res, msg);
       }
     }
-
-    createSendToken(user, 201, res);
   }
 });
 
@@ -409,56 +416,137 @@ exports.activateAUser = catchAsync(async (req, res, next) => {
     );
   }
 
-  const user = await User.findByIdAndUpdate(oldUser._id, {
+  const msg = "Your account has been activated, kindly login to continue";
+  createUserRecords(oldUser, res, msg);
+});
+
+function validateUser(
+  username,
+  firstName,
+  lastName,
+  email,
+  password,
+  phoneNumber
+) {
+  const regex = /^.{6,}$/;
+  const regexUser = /^.{4,}$/;
+  const phoneRegex = /^[0-9+]+$/;
+
+  if (!regexUser.test(username)) {
+    return "Username must be at least 4 characters long";
+  }
+
+  if (!regexUser.test(firstName)) {
+    return "First name must be at least 4 characters long";
+  }
+
+  if (!regexUser.test(lastName)) {
+    return "Last name must be at least 4 characters long";
+  }
+
+  if (!regex.test(password)) {
+    return "Password must be at least 6 characters long";
+  }
+
+  if (!phoneRegex.test(phoneNumber)) {
+    return "Please enter a valid phone number";
+  }
+
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    return "Invalid email address";
+  }
+
+  // All validations passed
+  return true;
+}
+
+const createUserRecords = async (userData, res, msg) => {
+  const user = await User.findByIdAndUpdate(userData._id, {
     suspension: false,
     status: "User",
   });
 
-  // await Referral.create({
-  //   username: user.referredBy,
-  //   referralUsername: user.username,
-  //   regDate: user.regDate,
-  // });
-
-  const emailResult = await Email.find({
-    template: "registration-successful",
+  await Comment.create({
+    username: user.username,
+    country: user.country,
+    flag: user.countryFlag,
+    profilePicture: user.profilePicture,
+    commented: false,
   });
-  const email = emailResult[0];
-  const companyResult = await Company.find();
-  const company = companyResult[0];
+
+  const referral = await User.findOne({ username: user.referredBy });
+  if (referral != null || referral != undefined) {
+    const form = {
+      username: user.username,
+      regDate: user.regDate,
+    };
+
+    referral.referrals.push(form);
+    await User.findByIdAndUpdate(referral._id, {
+      referrals: referral.referrals,
+      hasReferred: true,
+    });
+
+    await Referral.create({
+      username: referral.username,
+      referralUsername: user.username,
+      regDate: user.regDate,
+    });
+
+    prepareEmail(referral, "referral-signup", user);
+  }
+
+  prepareEmail(user, "registration-successful", user);
+
+  createSendToken(user, 200, res, "User", msg);
+};
+
+const prepareEmail = async (user, template, secondUser) => {
+  const email = await Email.findOne({
+    template: template,
+  });
+  const company = await Company.findOne();
 
   const content = email.content
     .replace("{{company-name}}", company.companyName)
-    .replace("{{fullName}}", `${user.fullName}`);
-  const from = company.systemEmail;
-  const domainName = company.companyDomain;
+    .replace("{{fullName}}", `${user.fullName}`)
+    .replace("{{username}}", `${secondUser.username}`);
+  const companyInfo = {
+    email: company.systemEmail,
+    username: user.username,
+  };
 
-  try {
-    const resetURL = `${domainName}/confirm-registration?token=${user._id}`;
-    const banner = `${domainName}/uploads/${email.banner}`;
-    new SendEmail(
-      company.companyName,
-      company.companyDomain,
-      from,
-      user,
-      email.template,
-      email.title,
-      banner,
-      content,
-      email.headerColor,
-      email.footerColor,
-      email.mainColor,
-      email.greeting,
-      email.warning,
-      resetURL
-    ).sendEmail();
-  } catch (err) {
-    return next(
-      new AppError(
-        `There was an error sending the email. Try again later!, ${err}`,
-        500
-      )
-    );
-  }
-  createSendToken(user, 200, res);
-});
+  const resetURL = `${company.companyDomain}/confirm-registration?token=${user._id}`;
+  const banner = `${company.companyDomain}/uploads/${email.banner}`;
+
+  const users = [companyInfo, user];
+
+  users.forEach((user) => {
+    try {
+      new SendEmail(
+        company,
+        user,
+        email,
+        banner,
+        content,
+        resetURL
+      ).sendEmail();
+    } catch (err) {
+      return next(
+        new AppError(
+          `There was an error sending the email. Try again later!, ${err}`,
+          500
+        )
+      );
+    }
+  });
+
+  const form = {
+    username: user.username,
+    time: new Date().getTime(),
+    message: content,
+    subject: email.title,
+  };
+
+  await Notification.create(form);
+};
