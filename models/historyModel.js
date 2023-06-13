@@ -16,7 +16,6 @@ const historySchema = new mongoose.Schema({
     default: false,
   },
   image: String,
-  reinvest: Boolean,
   online: Boolean,
 });
 
