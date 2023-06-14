@@ -723,7 +723,7 @@ const startRunningDeposit = async (data, id, next) => {
   startActiveDeposit(
     activeDeposit,
     earning,
-    data.planDuration * 1,
+    data.planDuration * 24 * 60 * 60 * 1000,
     data.planCycle * 1,
     user,
     next
