@@ -62,17 +62,17 @@ exports.signup = catchAsync(async (req, res, next) => {
     );
   } else {
     // VALIDATE THE BASIC RECEIVED FIELDS
-    const result = validateUser(
-      data.username,
-      data.firstName,
-      data.lastName,
-      data.email,
-      data.password,
-      data.phoneNumber
-    );
-    if (result != true) {
-      return next(new AppError(result, 401));
-    }
+    // const result = validateUser(
+    //   data.username,
+    //   data.firstName,
+    //   data.lastName,
+    //   data.email,
+    //   data.password,
+    //   data.phoneNumber
+    // );
+    // if (result != true) {
+    //   return next(new AppError(result, 401));
+    // }
 
     const user = await User.findOne({ username: data.username });
 
