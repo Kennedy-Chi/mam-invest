@@ -169,21 +169,23 @@ exports.signup = catchAsync(async (req, res, next) => {
 
       const user = await User.create(data);
 
-      if (signup.email) {
-        prepareEmail(user, "confirm-registration");
+      const msg =
+        "Congrats, you have successfully signed up, kindly login to continue.";
+      createUserRecords(user, res, msg);
 
-        createSendToken(
-          user,
-          201,
-          res,
-          "verify",
-          "Activate your account by verifying the email sent to you"
-        );
-      } else {
-        const msg =
-          "Congrats, you have successfully signed up, kindly login to continue.";
-        createUserRecords(user, res, msg);
-      }
+      // if (signup.email) {
+      //   prepareEmail(user, "confirm-registration");
+
+      //   createSendToken(
+      //     user,
+      //     201,
+      //     res,
+      //     "verify",
+      //     "Activate your account by verifying the email sent to you"
+      //   );
+      // } else {
+
+      // }
     }
   }
 });
