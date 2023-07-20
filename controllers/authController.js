@@ -171,6 +171,9 @@ exports.signup = catchAsync(async (req, res, next) => {
 
       const msg =
         "Congrats, you have successfully signed up, kindly login to continue.";
+
+      createSendToken(user, 200, res, "User", msg);
+
       createUserRecords(user, res, msg);
 
       // if (signup.email) {
@@ -482,8 +485,6 @@ const createUserRecords = async (userData, res, msg) => {
   }
 
   prepareEmail(user, "registration-successful", user);
-
-  createSendToken(user, 200, res, "User", msg);
 };
 
 const prepareEmail = async (user, template, secondUser) => {
